@@ -108,7 +108,7 @@ window.LISTS = {
       ["gefragt (Beruf)", "in demand"],
       ["Krankenpfleger/-schwester", "nurse"],
       ["Elektriker/in", "electrician"],
-      ["Erzieher/in", "nursery teacher"],
+      ["Grundschullehrer/in", "primary school teacher"],
       ["Verkäufer/in", "sales assistant"],
       ["Koch/Köchin", "cook"],
       ["IT-Techniker/in", "IT technician"],
