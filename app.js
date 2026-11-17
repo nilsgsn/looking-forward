@@ -150,7 +150,7 @@
       </div>
       <div class="card"><h2>No code yet?</h2><p class="muted">You can still learn and practise. Your points are not saved.</p>
         <button class="btn alt" data-go="learn">Start learning</button></div>`;
-    const inp = document.getElementById("code");
+    const inp = document.getElementById("code"); inp.focus();
     const submit = async () => {
       const code = inp.value.trim().toUpperCase();
       if (!code) return;
@@ -170,7 +170,7 @@
         <div class="row" style="margin-top:12px"><button class="btn" id="save">Save</button></div>
         <div class="err" id="err"></div>
       </div>`;
-    const inp = document.getElementById("nick");
+    const inp = document.getElementById("nick"); inp.focus();
     const save = async () => {
       try { state.me = await rpc("set_nickname", { p_code: state.code, p_nick: inp.value.trim() }); renderMe(); go("home"); }
       catch (e) { document.getElementById("err").textContent = e.message; }
@@ -362,7 +362,8 @@
         <p class="muted">You play 10 questions first. Then your opponent gets the same questions. More points win – if it's a draw, the faster player wins. Winner: +5 XP.</p>
         <input type="text" id="opp" list="players" placeholder="Nickname of your opponent" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false">
         <datalist id="players">${players.map((p) => `<option value="${esc(p.nickname)}">${esc(p.course)}</option>`).join("")}</datalist>
-        <div class="row" style="margin-top:10px">${Object.keys(MODES).map((k) => `<button class="btn small alt" data-dm="${k}">${esc(MODES[k].replace("Vocabulary – ", ""))}</button>`).join("")}</div>
+        <p class="muted" style="margin:12px 0 0">Then tap a topic to start:</p>
+        <div class="row" style="margin-top:8px">${Object.keys(MODES).map((k) => `<button class="btn small alt" data-dm="${k}">${esc(MODES[k].replace("Vocabulary – ", ""))}</button>`).join("")}</div>
         <div class="err" id="err"></div></div>
       <div class="card"><h2 style="margin-top:0">Your turn (${todo.length})</h2>${todo.length ? `<ul class="list">${todo.map((d) => `<li><span><b>${esc(d.other)}</b> challenged you · ${esc(MODES[d.mode])}</span><button class="btn small" data-play="${d.id}">Play</button></li>`).join("")}</ul>` : '<p class="muted">No open challenges.</p>'}</div>
       <div class="card"><h2 style="margin-top:0">Waiting for … (${waiting.length})</h2>${waiting.length ? `<ul class="list">${waiting.map((d) => `<li><span><b>${esc(d.other)}</b> · ${esc(MODES[d.mode])}</span><span class="muted">you: ${d.my_score}/10</span></li>`).join("")}</ul>` : '<p class="muted">Nothing open.</p>'}</div>
@@ -391,7 +392,7 @@
     $main.innerHTML = `<h1>🏆 Ranking</h1>
       <div class="card"><h2 style="margin-top:0">Course battle (this week)</h2>
         <p class="muted">Points per player – so the size of the course doesn't matter.</p>
-        ${lb.courses.map((c) => `<div><b>${esc(c.course)}</b> <span class="muted">· ${c.pts} points · ${c.players} players</span>
+        ${lb.courses.map((c) => `<div><b>${esc(c.course)}</b> <span class="muted">· ${c.pts} points · ${c.players} ${c.players === 1 ? "player" : "players"}</span>
           <div class="bar"><div style="width:${Math.max(8, (c.per_player / max) * 100)}%;background:${colors[c.course] || "var(--cyan)"}">${c.per_player}</div></div></div>`).join("")}</div>
       <div class="card"><h2 style="margin-top:0">Top 10 this week</h2>${table(lb.week_top, mine)}<p class="muted">New week, new chance: the weekly ranking starts again every Monday.</p></div>
       <div class="card"><h2 style="margin-top:0">Hall of Fame (all XP)</h2>${table(lb.all_top, mine)}</div>`;
