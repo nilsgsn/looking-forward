@@ -15,7 +15,8 @@
     BAD_OPPONENT: "This player does not exist.",
     TOO_MANY_OPEN: "You already have 5 open duels. Wait for answers first.",
     BAD_DUEL: "This duel is not available any more.",
-    BAD_RESULT: "Something went wrong with your result."
+    BAD_RESULT: "Something went wrong with your result.",
+    BLOCKED: "This code has been blocked. Please talk to your teacher."
   };
 
   async function rpc(fn, args) {
@@ -133,6 +134,7 @@
         <div class="tile" data-go="duels"><b>⚔️ Duels</b><small>Challenge someone from 9abc or 9de</small></div>
         <div class="tile" data-go="ranking"><b>🏆 Ranking</b><small>9abc vs. 9de – who is ahead this week?</small></div>
       </div>
+      ${me.course === "teacher" ? '<p class="center" style="margin-top:20px"><a class="btn alt" href="teacher.html">🧑‍🏫 Teacher dashboard</a></p>' : ""}
       <p class="muted center" style="margin-top:20px"><a href="#" id="logout">Sign out on this device</a></p>`;
     document.getElementById("logout").onclick = (e) => { e.preventDefault(); if (confirmBox()) { store.del("code"); state.code = null; state.me = null; renderMe(); go("home"); } };
   }
@@ -183,9 +185,12 @@
   function viewLearn() {
     const tiles = Object.entries(LISTS).map(([k, l]) => {
       const boxes = store.get("box_" + k, {});
-      const known = l.words.filter((w) => (boxes[w[0]] || 0) >= 3).length;
-      return `<div class="tile" data-list="${k}"><b>${esc(l.title)}</b><small>${esc(l.sub)} · ${l.words.length} words</small>
-        <div class="progress"><div style="width:${Math.round((known / l.words.length) * 100)}%"></div></div><small>${known} of ${l.words.length} learnt</small></div>`;
+      const n = l.words.length;
+      const known = l.words.filter((w) => (boxes[w[0]] || 0) >= 1).length;
+      const mastered = l.words.filter((w) => (boxes[w[0]] || 0) >= 3).length;
+      const pct = Math.round((l.words.reduce((s, w) => s + Math.min(boxes[w[0]] || 0, 3), 0) / (3 * n)) * 100);
+      return `<div class="tile" data-list="${k}"><b>${esc(l.title)}</b><small>${esc(l.sub)} · ${n} words</small>
+        <div class="progress"><div style="width:${pct}%"></div></div><small>✔ ${known} known · ⭐ ${mastered} mastered (3× right)</small></div>`;
     }).join("");
     $main.innerHTML = `<h1>📚 Learn</h1>
       <h2>Vocabulary (flashcards)</h2><div class="grid">${tiles}</div>
@@ -389,7 +394,9 @@
     const colors = { "9abc": "var(--cyan)", "9de": "var(--petrol)" };
     const table = (rows, mine) => rows.length ? `<table class="rank">${rows.map((r, n) => `<tr${mine && r.nickname === mine ? ' style="background:#fbfce9"' : ""}><td>${n + 1}.</td><td>${esc(r.nickname)} <span class="badge c${esc(r.course)}">${esc(r.course)}</span></td><td>${r.pts}</td></tr>`).join("")}</table>` : '<p class="muted">No points yet – be the first!</p>';
     const mine = state.me && state.me.nickname;
-    $main.innerHTML = `<h1>🏆 Ranking</h1>
+    const teacherNote = state.me && state.me.course === "teacher"
+      ? `<div class="card"><b>🧑‍🏫 Teacher account</b><p class="muted">Teacher accounts are not part of the ranking. Your XP: ${state.me.xp} (this week: ${state.me.week}).</p></div>` : "";
+    $main.innerHTML = `<h1>🏆 Ranking</h1>${teacherNote}
       <div class="card"><h2 style="margin-top:0">Course battle (this week)</h2>
         <p class="muted">Points per player – so the size of the course doesn't matter.</p>
         ${lb.courses.map((c) => `<div><b>${esc(c.course)}</b> <span class="muted">· ${c.pts} points · ${c.players} ${c.players === 1 ? "player" : "players"}</span>
