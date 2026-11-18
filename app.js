@@ -11,7 +11,9 @@
     BAD_NICK: "Nickname: 3–16 letters, numbers or _ (no spaces).",
     NICK_TAKEN: "This nickname is already taken.",
     NO_NICK: "Choose a nickname first.",
-    TOO_FAST: "Slow down 😉 Wait a few seconds and try again.",
+    TOO_FAST: "Slow down 😉 Please wait a minute between two saved activities.",
+    QUIZ_LIMIT: "You've done the quiz three times today – try again tomorrow.",
+    SPEAK_LIMIT: "You've already logged 5 speaking sessions today. Great work – come back tomorrow!",
     BAD_OPPONENT: "This player does not exist.",
     TOO_MANY_OPEN: "You already have 5 open duels. Wait for answers first.",
     BAD_DUEL: "This duel is not available any more.",
@@ -101,19 +103,107 @@
   }
 
   // ---- Router
+  // ---- Entry quiz gate: only the quiz + profile unlock the app
+  const quizAnswers = () => (state.code ? (state.me && state.me.quiz ? state.me.quiz.answers : null) : store.get("quiz", null));
+  const unlocked = () => !!quizAnswers();
   function go(tab, arg) {
+    if (tab !== "home" && (!unlocked() || (state.code && state.me && !state.me.nickname))) tab = "home";
     state.tab = tab;
+    document.body.classList.toggle("locked", !unlocked());
     document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.go === tab));
     window.scrollTo(0, 0);
-    ({ home: viewHome, learn: viewLearn, practice: viewPractice, duels: viewDuels, ranking: viewRanking })[tab](arg);
+    ({ home: viewHome, learn: viewLearn, practice: viewPractice, speak: viewSpeak, duels: viewDuels, ranking: viewRanking })[tab](arg);
+  }
+
+  // ---- Entry quiz
+  const EQ = window.ENTRY_QUIZ;
+  function viewQuizIntro() {
+    $main.innerHTML = `
+      <div class="card hero center quiz-hero">
+        <div class="big">🚀</div>
+        <h1>Are you ready for the real world?</h1>
+        <p>Soon your life will change: a new school, training, a first job – maybe your own flat. Find out what kind of “future you” you are!</p>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-around;text-align:center">
+          ${EQ.ORDER.map((d) => `<div><div style="font-size:30px">${EQ.DIMS[d].icon}</div><small class="muted">${esc(EQ.DIMS[d].name)}</small></div>`).join("")}
+        </div>
+        <p style="margin-top:14px">🔒 <b>The app is still locked.</b> Answer ${EQ.QUESTIONS.length} quick questions and get your personal life-skills profile – then everything unlocks.</p>
+        <p class="muted">There are no right or wrong answers. Be honest – only you and your teacher can see your profile.</p>
+        <div class="center"><button class="btn lime big-btn" id="startq">Let's go! ▶</button></div>
+      </div>`;
+    document.getElementById("startq").onclick = () => runQuiz();
+  }
+  function runQuiz() {
+    const rand = rng(newSeed());
+    const order = EQ.QUESTIONS.map(() => shuffle(["a", "b", "c"], rand));
+    const answers = [];
+    let i = 0;
+    const draw = () => {
+      const q = EQ.QUESTIONS[i];
+      $main.innerHTML = `
+        <div class="row" style="justify-content:space-between"><span class="muted">${EQ.DIMS[q.d].icon} ${esc(EQ.DIMS[q.d].name)}${q.isNew ? ' · <span class="badge">new 2026</span>' : ""}</span><span class="muted">${i + 1} / ${EQ.QUESTIONS.length}</span></div>
+        <div class="progress"><div style="width:${(i / EQ.QUESTIONS.length) * 100}%"></div></div>
+        <div class="card quizq"><div class="qicon">${q.icon}</div><div class="prompt">${esc(q.q)}</div>
+          <div class="qopts">${order[i].map((k) => `<button class="qopt" data-a="${k}">${esc(q[k])}</button>`).join("")}</div></div>
+        ${i > 0 ? '<button class="btn alt small" id="back">◀ Back</button>' : ""}`;
+      $main.querySelectorAll(".qopt").forEach((b) => (b.onclick = () => {
+        b.classList.add("picked"); answers[i] = b.dataset.a;
+        setTimeout(() => { i++; i < EQ.QUESTIONS.length ? draw() : finish(); }, 250);
+      }));
+      const back = document.getElementById("back"); if (back) back.onclick = () => { i--; draw(); };
+    };
+    async function finish() {
+      const str = answers.join("");
+      $main.innerHTML = `<div class="card center"><div class="big spin">⚙️</div><h2>Analysing your life skills …</h2><p class="muted">Home · Money · Digital life · Organisation · Independence</p></div>`;
+      const wait = new Promise((r) => setTimeout(r, 1800));
+      let err = null, first = !unlocked();
+      if (state.code) { try { state.me = await rpc("submit_quiz", { p_code: state.code, p_answers: str }); } catch (e) { err = e.message; } }
+      else store.set("quiz", { answers: str, at: new Date().toISOString() });
+      await wait;
+      if (err) { $main.innerHTML = `<div class="card"><p class="err">${esc(err)}</p><button class="btn" id="retry">Try again</button></div>`; document.getElementById("retry").onclick = finish; return; }
+      renderMe(); showProfile(str, first);
+    }
+    draw();
+  }
+  function profileHtml(r) {
+    return `
+      <div class="card hero center"><div class="muted">Your life-skills profile</div><div class="big">${r.icon}</div><h1 style="margin:4px 0">${esc(r.title)}</h1>
+        <div class="muted">Overall: ${r.total}% ready for the real world</div></div>
+      <div class="card"><b>Your skills</b>
+        ${EQ.ORDER.map((d) => `<div class="row" style="justify-content:space-between;margin-top:8px"><span>${EQ.DIMS[d].icon} ${esc(EQ.DIMS[d].name)}${d === r.best && !r.balanced ? " 💪" : ""}${d === r.worst && !r.balanced ? " 🌱" : ""}</span><span class="muted">${r.dims[d]}%</span></div>
+          <div class="bar" style="margin:4px 0 0"><div style="width:${Math.max(4, r.dims[d])}%;background:${d === r.best ? "var(--ok)" : d === r.worst ? "#e0a800" : "var(--cyan)"}"></div></div>`).join("")}</div>
+      <div class="card"><b>💪 Your strength</b><p>${esc(r.strength)}</p><p>${esc(r.levelText)}</p></div>
+      <div class="card"><b>🌱 Your next level: ${EQ.DIMS[r.grow].icon} ${esc(EQ.DIMS[r.grow].name)}</b><ul>${r.growTips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
+        <p class="hl" style="padding:8px">🎯 <b>Challenge:</b> ${esc(r.week)}</p></div>
+      ${r.notes.length ? `<div class="card">${r.notes.map((n) => `<p>${esc(n)}</p>`).join("")}</div>` : ""}
+      <div class="card"><b>💼 Jobs from our unit that could suit you</b><div class="row" style="margin-top:8px">${r.jobs.map((j) => { const job = JOBS.find((x) => x.en === j); return `<span class="badge" style="font-size:15px;padding:6px 12px">${job ? job.icon : ""} ${esc(j)}</span>`; }).join("")}</div>
+        <p class="muted">Find out more in 🎙️ Speak → Job explorer.</p></div>`;
+  }
+  function showProfile(answers, first) {
+    const r = EQ.evaluate(answers);
+    $main.innerHTML = profileHtml(r) + `
+      <div class="center" style="margin:18px 0">${first
+        ? `<button class="btn lime big-btn" id="unlock">🔓 Unlock the app${state.code ? " (+10 XP)" : ""}</button>`
+        : `<button class="btn" data-go="home">Back to home</button>`}</div>`;
+    const u = document.getElementById("unlock");
+    if (u) u.onclick = () => { confetti(); document.body.classList.remove("locked"); setTimeout(() => go("home"), 900); };
+  }
+  function confetti() {
+    const box = document.createElement("div"); box.className = "confetti";
+    for (let k = 0; k < 60; k++) { const s = document.createElement("span"); s.textContent = ["🎉", "⭐", "💼", "🚀", "✨"][k % 5]; s.style.left = Math.random() * 100 + "vw"; s.style.animationDelay = Math.random() * 0.6 + "s"; box.appendChild(s); }
+    document.body.appendChild(box); setTimeout(() => box.remove(), 2600);
   }
   document.addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go); });
 
   // ---- Home / sign in
   function viewHome() {
-    if (!state.code) return viewSignIn();
+    if (!state.code && !store.get("guest", false)) return viewSignIn();
     if (state.me && !state.me.nickname) return viewNickname();
+    if (!unlocked()) return viewQuizIntro();
+    if (!state.code) return viewGuestHome();
     const me = state.me || { xp: 0, week: 0 };
+    const prof = EQ.evaluate(quizAnswers());
     const lv = level(me.xp);
     const streak = store.get("streak", { days: 0 }).days;
     $main.innerHTML = `
@@ -128,15 +218,34 @@
         <div class="levelbar" style="margin-top:10px"><div style="width:${lv.pct}%"></div></div>
         <div class="muted" style="margin-top:6px">${lv.next ? `${lv.toNext} XP to <b>${esc(lv.next)}</b>` : "Top level reached – you're the CEO! 🎉"}</div>
       </div>
+      <div class="card"><div class="row" style="justify-content:space-between"><span><span style="font-size:26px">${prof.icon}</span> <b>${esc(prof.title)}</b><br><small class="muted">🎯 ${esc(prof.week)}</small></span>
+        <span class="row"><button class="btn small alt" id="myprof">My profile</button><button class="btn small alt" id="retake">Retake quiz</button></span></div></div>
+      <div class="card"><b>🎯 Oral exam on 16th December</b><p class="muted" style="margin:4px 0 0">Part 1: explain a job · Part 2: job interview for your dream job. Train both in 🎙️ Speak!</p></div>
       <div class="grid">
         <div class="tile" data-go="learn"><b>📚 Learn</b><small>Flashcards and grammar rules – no pressure</small></div>
         <div class="tile" data-go="practice"><b>🎯 Practice</b><small>10 questions, collect XP</small></div>
+        <div class="tile" data-go="speak"><b>🎙️ Speak</b><small>Job explorer, job cards, interview simulator</small></div>
         <div class="tile" data-go="duels"><b>⚔️ Duels</b><small>Challenge someone from 9abc or 9de</small></div>
         <div class="tile" data-go="ranking"><b>🏆 Ranking</b><small>9abc vs. 9de – who is ahead this week?</small></div>
       </div>
       ${me.course === "teacher" ? '<p class="center" style="margin-top:20px"><a class="btn alt" href="teacher.html">🧑‍🏫 Teacher dashboard</a></p>' : ""}
       <p class="muted center" style="margin-top:20px"><a href="#" id="logout">Sign out on this device</a></p>`;
     document.getElementById("logout").onclick = (e) => { e.preventDefault(); if (confirmBox()) { store.del("code"); state.code = null; state.me = null; renderMe(); go("home"); } };
+    document.getElementById("myprof").onclick = () => showProfile(quizAnswers(), false);
+    document.getElementById("retake").onclick = () => { if (window.confirm("Retake the quiz? Your new answers will create a new profile – good to see how you've grown!")) runQuiz(); };
+  }
+  function viewGuestHome() {
+    const prof = EQ.evaluate(quizAnswers());
+    $main.innerHTML = `<div class="card hero"><h1>Hi there! 👋</h1><p>You're using the app without a code – your points are not saved.</p></div>
+      <div class="card"><span style="font-size:26px">${prof.icon}</span> <b>${esc(prof.title)}</b> <button class="btn small alt" id="myprof">My profile</button></div>
+      <div class="grid">
+        <div class="tile" data-go="learn"><b>📚 Learn</b><small>Flashcards and grammar rules</small></div>
+        <div class="tile" data-go="practice"><b>🎯 Practice</b><small>10 questions</small></div>
+        <div class="tile" data-go="speak"><b>🎙️ Speak</b><small>Job explorer, job cards, interview simulator</small></div>
+      </div>
+      <p class="center" style="margin-top:20px"><a href="#" id="signin">Sign in with a code</a></p>`;
+    document.getElementById("myprof").onclick = () => showProfile(quizAnswers(), false);
+    document.getElementById("signin").onclick = (e) => { e.preventDefault(); store.del("guest"); go("home"); };
   }
   function confirmBox() { return window.confirm("Sign out? Keep your code – you need it to sign in again."); }
 
@@ -151,7 +260,8 @@
         <div class="err" id="err"></div>
       </div>
       <div class="card"><h2>No code yet?</h2><p class="muted">You can still learn and practise. Your points are not saved.</p>
-        <button class="btn alt" data-go="learn">Start learning</button></div>`;
+        <button class="btn alt" id="guest">Continue without a code</button></div>`;
+    document.getElementById("guest").onclick = () => { store.set("guest", true); go("home"); };
     const inp = document.getElementById("code"); inp.focus();
     const submit = async () => {
       const code = inp.value.trim().toUpperCase();
@@ -348,6 +458,120 @@
         if (state.code) { state.me = await rpc("login", { p_code: state.code }); renderMe(); }
       } catch (e) { srv.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
     }
+    draw();
+  }
+
+  // ---- Speak: job explorer, job cards (part 1), interview simulator (part 2)
+  let timerId = null;
+  const ASPECTS = [["🕗", "a typical working day", "day"], ["🧰", "duties", "duties"], ["⏰", "working hours", "hours"], ["💶", "pay / salary", "pay"], ["📈", "future prospects", "prospects"], ["⭐", "qualities you need", "qualities"]];
+  function runTimer(el, ph, secs, label, then) {
+    let left = secs; ph.textContent = label; clearInterval(timerId);
+    const show = () => { el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`; };
+    show(); timerId = setInterval(() => { left--; show(); if (left <= 0) { clearInterval(timerId); then && then(); } }, 1000);
+  }
+  async function logSpeaking(kind, n, min) {
+    const res = document.getElementById("res");
+    if (!state.code) { res.innerHTML = '<p class="muted">Well done! Sign in with a code to collect XP for speaking.</p>'; return; }
+    if (n < min) { res.innerHTML = `<p class="err">Tick what you managed to do (at least ${min}).</p>`; return; }
+    try { state.me = await rpc("submit_speaking", { p_code: state.code, p_kind: kind, p_items: n }); renderMe(); touchStreak(); clearInterval(timerId);
+      res.innerHTML = `<div class="feedback ok">+3 XP saved ✔ Great speaking practice!</div>`; document.getElementById("log").disabled = true; }
+    catch (e) { res.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  }
+  function viewSpeak() {
+    clearInterval(timerId);
+    const wish = store.get("wish", null);
+    $main.innerHTML = `<h1>🎙️ Speak</h1>
+      <p class="muted">Train for your oral exam. Every speaking session = 3 XP (max. 5 per day). Be honest – it's your exam! 😉</p>
+      <div class="grid">
+        <div class="tile" id="explore"><b>🔎 Job explorer</b><small>All 8 exam jobs: daily routine, duties, hours, pay, prospects, qualities</small></div>
+        <div class="tile" id="card"><b>🎴 Part 1: job card</b><small>Draw a job and explain it – 1 min to prepare, 2–3 min to speak</small></div>
+        <div class="tile" id="intv"><b>🤝 Part 2: job interview</b><small>The app asks you the questions – answer out loud</small></div>
+      </div>
+      <div class="card" style="margin-top:12px"><b>Your dream job for the interview:</b>
+        <select id="wish" style="font:inherit;padding:8px;border-radius:10px;margin-left:6px"><option value="">– choose –</option>${JOBS.map((j) => `<option ${wish === j.en ? "selected" : ""}>${esc(j.en)}</option>`).join("")}</select>
+        <p class="muted">In the exam you explain a different job in part 1 – so the job cards skip your dream job.</p></div>`;
+    document.getElementById("wish").onchange = (e) => store.set("wish", e.target.value || null);
+    document.getElementById("explore").onclick = () => jobExplorer(0);
+    document.getElementById("card").onclick = () => jobCard();
+    document.getElementById("intv").onclick = () => interview();
+  }
+  function jobExplorer(k) {
+    const j = JOBS[k];
+    const rows = [["🕗 A typical working day", j.day], ["🧰 Duties", j.duties.join(" · ")], ["⏰ Working hours", j.hours], ["💶 Pay", j.pay], ["🎓 Training", j.training], ["📈 Future prospects", j.prospects], ["⭐ Qualities you need", j.qualities.join(" · ")]];
+    $main.innerHTML = `<div class="row" style="gap:6px;margin-bottom:10px">${JOBS.map((x, n) => `<button class="btn small ${n === k ? "" : "alt"}" data-j="${n}">${x.icon} ${esc(x.en)}</button>`).join("")}</div>
+      <div class="card"><h1 style="margin:0">${j.icon} ${esc(j.en)}</h1><div class="muted">${esc(j.de)}</div>
+        <ul class="list">${rows.map((r) => `<li style="display:block"><b>${esc(r[0])}</b><br>${esc(r[1])}</li>`).join("")}</ul>
+        <p class="muted">Figures: Germany, approx., per month before tax.</p></div>
+      <div class="row"><button class="btn" id="tocard">Practise this job ▶</button><button class="btn alt" data-go="speak">Back</button></div>`;
+    $main.querySelectorAll("[data-j]").forEach((b) => (b.onclick = () => jobExplorer(+b.dataset.j)));
+    document.getElementById("tocard").onclick = () => jobCard(k);
+  }
+  function jobCard(k) {
+    clearInterval(timerId);
+    const wish = store.get("wish", null);
+    const pool = JOBS.map((_, n) => n).filter((n) => JOBS[n].en !== wish);
+    if (k === undefined) k = pool[Math.floor(Math.random() * pool.length)];
+    const j = JOBS[k];
+    $main.innerHTML = `<div class="card hero center"><div class="muted">Oral exam · Part 1</div><div class="big">${j.icon}</div><h1 style="margin:0">${esc(j.en)}</h1></div>
+      <div class="card"><b>Explain this job. Talk about:</b>
+        ${ASPECTS.map((a) => `<label class="check"><input type="checkbox" data-c="${a[2]}"> <span>${a[0]} ${esc(a[1])}</span></label>`).join("")}
+        <p class="muted">Tick each point after you've talked about it.</p></div>
+      <div class="card"><div class="timer" id="t">1:00</div><p class="center muted" id="phase">Preparation: make notes for each point.</p>
+        <div class="row" style="justify-content:center"><button class="btn" id="start">▶ Start</button><button class="btn alt" id="skip">Start speaking</button><button class="btn alt" id="other">Other job</button></div></div>
+      <div class="card"><b>Need help?</b> <button class="btn small alt" id="frame">Sentence starters</button> <button class="btn small alt" id="facts">Show job facts</button><div id="help"></div></div>
+      <div class="card"><div class="row"><button class="btn lime" id="log">✔ Log session (+3 XP)</button><button class="btn alt" data-go="speak">Back</button></div><div id="res"></div></div>`;
+    const t = document.getElementById("t"), ph = document.getElementById("phase");
+    const speak = () => runTimer(t, ph, 150, "Speak now – about 2–3 minutes. Use all six points!", () => { ph.textContent = "Time's up – how did it go?"; });
+    document.getElementById("start").onclick = () => runTimer(t, ph, 60, "Preparation: make notes for each point.", speak);
+    document.getElementById("skip").onclick = speak;
+    document.getElementById("other").onclick = () => jobCard();
+    document.getElementById("frame").onclick = () => { document.getElementById("help").innerHTML = `<ul>
+      <li>I'd like to tell you about the job of a/an … · In German it's called …</li><li>A typical day starts at … First, … Then, … After that, …</li>
+      <li>As a/an … you have to … · You are responsible for …</li><li>You work about … hours a week. · You work shifts / at weekends.</li>
+      <li>During your training you earn about … After your training …</li><li>The future prospects are very good / okay, because …</li>
+      <li>You should be … and … · It's important that you are good at …</li><li>All in all, I think this job is … because …</li></ul>`; };
+    document.getElementById("facts").onclick = () => { document.getElementById("help").innerHTML = `<p class="muted">Try without first! 😉</p><ul>${[["Day", j.day], ["Duties", j.duties.join(" · ")], ["Hours", j.hours], ["Pay", j.pay], ["Prospects", j.prospects], ["Qualities", j.qualities.join(" · ")]].map((r) => `<li><b>${r[0]}:</b> ${esc(r[1])}</li>`).join("")}</ul>`; };
+    document.getElementById("log").onclick = () => logSpeaking("jobcard", $main.querySelectorAll("[data-c]:checked").length, 3);
+  }
+  function say(text) {
+    try {
+      const u = new SpeechSynthesisUtterance(text); u.lang = "en-GB"; u.rate = 0.92;
+      const v = speechSynthesis.getVoices().find((x) => /en-GB/i.test(x.lang)) || speechSynthesis.getVoices().find((x) => /^en/i.test(x.lang));
+      if (v) u.voice = v; speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function interview() {
+    clearInterval(timerId);
+    const wish = store.get("wish", null);
+    if (!wish) { $main.innerHTML = `<div class="card"><h2>Choose your dream job first</h2><p>In part 2 your teacher interviews you for your dream job.</p><button class="btn" data-go="speak">Choose it in Speak</button></div>`; return; }
+    const rand = rng(newSeed());
+    const qs = [...INTERVIEW.start, ...shuffle(INTERVIEW.general, rand).slice(0, 5).map((q) => q.replace("JOB", wish)), ...shuffle(INTERVIEW.special[wish] || [], rand).slice(0, 1), ...INTERVIEW.end];
+    let i = 0; let showText = store.get("showText", true);
+    const draw = () => {
+      const q = qs[i];
+      $main.innerHTML = `<div class="row" style="justify-content:space-between"><b>🤝 Job interview: ${esc(wish)}</b><span class="muted">${i + 1} / ${qs.length}</span></div>
+        <div class="progress"><div style="width:${(i / qs.length) * 100}%"></div></div>
+        <div class="card center"><div class="big">🧑‍💼</div><div class="prompt" id="qtext" style="${showText ? "" : "filter:blur(7px)"}">${esc(q)}</div>
+          <div class="row" style="justify-content:center"><button class="btn" id="play">🔊 Listen again</button><button class="btn alt" id="toggle">${showText ? "Hide text (harder)" : "Show text"}</button></div>
+          <div class="timer" id="t" style="font-size:36px;margin-top:10px">0:45</div><p class="muted" id="phase">Answer out loud – in full sentences.</p></div>
+        <div class="card"><b>Need help?</b> <button class="btn small alt" id="help">Useful phrases</button><div id="hb"></div></div>
+        <div class="row" style="justify-content:center"><button class="btn lime" id="next">${i < qs.length - 1 ? "Next question ➜" : "Finish interview"}</button></div>`;
+      say(q);
+      runTimer(document.getElementById("t"), document.getElementById("phase"), 45, "Answer out loud – in full sentences.", () => { document.getElementById("phase").textContent = "Time's up – next question?"; });
+      document.getElementById("play").onclick = () => say(q);
+      document.getElementById("toggle").onclick = () => { showText = !showText; store.set("showText", showText); draw(); };
+      document.getElementById("help").onclick = () => { document.getElementById("hb").innerHTML = Object.entries(INTERVIEW.help).map(([h, ps]) => `<p><b>${esc(h)}:</b> ${ps.map(esc).join(" · ")}</p>`).join(""); };
+      document.getElementById("next").onclick = () => { i++; i < qs.length ? draw() : end(); };
+    };
+    const end = () => {
+      clearInterval(timerId); try { speechSynthesis.cancel(); } catch (e) {}
+      const checks = ["I answered every question in full sentences.", "I gave examples (e.g. for my strengths).", "I used phrases from the help box / Wordbank 5.", "I asked at least one question at the end.", "I was polite: greeting, thanks, goodbye."];
+      $main.innerHTML = `<div class="card center"><div class="big">🎉</div><h1>Interview finished!</h1><p class="muted">How did it go? Tick what you managed.</p></div>
+        <div class="card">${checks.map((c, n) => `<label class="check"><input type="checkbox" data-c="${n}"> <span>${esc(c)}</span></label>`).join("")}
+          <div class="row" style="margin-top:12px"><button class="btn lime" id="log">✔ Log session (+3 XP)</button><button class="btn alt" id="again">New interview</button><button class="btn alt" data-go="speak">Back</button></div><div id="res"></div></div>`;
+      document.getElementById("log").onclick = () => logSpeaking("interview", $main.querySelectorAll("[data-c]:checked").length, 2);
+      document.getElementById("again").onclick = interview;
+    };
     draw();
   }
 

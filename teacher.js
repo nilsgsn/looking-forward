@@ -69,10 +69,10 @@
     document.getElementById("me").innerHTML = `Stand ${S.updated.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · <a href="#" id="refresh" style="color:#fff">aktualisieren</a> · <a href="#" id="out" style="color:#fff">abmelden</a>`;
     document.getElementById("refresh").onclick = (e) => { e.preventDefault(); load(); };
     document.getElementById("out").onclick = (e) => { e.preventDefault(); store.del("code"); S.code = null; clearInterval(S.timer); S.timer = null; document.getElementById("me").innerHTML = ""; signIn(); };
-    const tabs = [["overview", "Übersicht"], ["players", `Lernende (${d.players.length})`], ["duels", `Duelle (${d.duels.filter((x) => x.status === "open").length} offen)`], ["admin", "Verwaltung"]];
+    const tabs = [["overview", "Übersicht"], ["players", `Lernende (${d.players.length})`], ["quiz", `Einstiegsquiz (${d.players.filter((x) => x.quiz_latest).length}/${d.players.length})`], ["duels", `Duelle (${d.duels.filter((x) => x.status === "open").length} offen)`], ["admin", "Verwaltung"]];
     $main.innerHTML = `<div class="ttabs">${tabs.map(([k, l]) => `<button data-t="${k}" class="${S.tab === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div><div id="status" class="err"></div><div id="view"></div>`;
     $main.querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => { S.tab = b.dataset.t; render(); }));
-    ({ overview, players, duels, admin })[S.tab](document.getElementById("view"));
+    ({ overview, players, quiz, duels, admin })[S.tab](document.getElementById("view"));
   }
 
   function overview(v) {
@@ -110,7 +110,7 @@
     const d = S.data;
     let rows = d.players.filter((p) => S.course === "all" || p.course === S.course);
     const key = S.sort, dir = S.dir;
-    const val = (p) => key.startsWith("m:") ? ((p.modes || {})[key.slice(2)] || { pct: -1 }).pct : key === "last_active" ? (p.last_active ? new Date(p.last_active).getTime() : 0) : p[key];
+    const val = (p) => key === "quiz" ? (p.quiz_latest ? EQ.evaluate(p.quiz_latest).total : -1) : key.startsWith("m:") ? ((p.modes || {})[key.slice(2)] || { pct: -1 }).pct : key === "last_active" ? (p.last_active ? new Date(p.last_active).getTime() : 0) : p[key];
     rows.sort((a, b) => { const x = val(a), y = val(b); return (typeof x === "string" ? x.localeCompare(y, "de", { sensitivity: "base" }) : (x || 0) - (y || 0)) * dir; });
     const th = (k, l, num) => `<th data-s="${k}" class="${num ? "num" : ""}">${esc(l)}${S.sort === k ? (S.dir > 0 ? " ▲" : " ▼") : ""}</th>`;
     v.innerHTML = `<div class="card">
@@ -118,12 +118,12 @@
         <select id="course"><option value="all">alle</option><option value="9abc">9abc</option><option value="9de">9de</option></select></div>
         <span class="muted">Trefferquote je Bereich: T1–T3 = Vokabeltests, Int = Interview, Gr = Grammatik</span></div>
       <div class="scroll" style="margin-top:10px"><table class="t"><thead><tr>
-        ${th("nickname", "Spitzname")}${th("course", "Kurs")}${th("code", "Code")}${th("xp", "XP", 1)}${th("week", "Woche", 1)}${th("rounds_week", "Runden Woche", 1)}${th("rounds", "Runden ges.", 1)}${th("last_active", "zuletzt aktiv")}
+        ${th("nickname", "Spitzname")}${th("course", "Kurs")}${th("code", "Code")}${th("xp", "XP", 1)}${th("week", "Woche", 1)}${th("rounds_week", "Runden Woche", 1)}${th("rounds", "Runden ges.", 1)}${th("speaking", "Sprechen", 1)}${th("quiz", "Quiz-Profil")}${th("last_active", "zuletzt aktiv")}
         ${Object.keys(MODE_SHORT).map((m) => th("m:" + m, MODE_SHORT[m], 1)).join("")}<th></th></tr></thead>
       <tbody>${rows.map((p) => `<tr class="${p.blocked ? "blocked" : ""}"><td><b>${esc(p.nickname)}</b>${p.blocked ? " 🚫" : ""}</td><td><span class="badge c${esc(p.course)}">${esc(p.course)}</span></td>
-        <td class="muted">${esc(p.code)}</td><td class="num">${p.xp}</td><td class="num">${p.week}</td><td class="num">${p.rounds_week}</td><td class="num">${p.rounds}</td><td>${ago(p.last_active)}</td>
+        <td class="muted">${esc(p.code)}</td><td class="num">${p.xp}</td><td class="num">${p.week}</td><td class="num">${p.rounds_week}</td><td class="num">${p.rounds}</td><td class="num">${p.speaking}</td><td>${p.quiz_latest ? (() => { const r = EQ.evaluate(p.quiz_latest); return `${r.icon} ${esc(r.title)} <span class="muted">${r.total}%</span>`; })() : '<span class="p-lo pct">offen</span>'}</td><td>${ago(p.last_active)}</td>
         ${Object.keys(MODE_SHORT).map((m) => `<td class="num">${pctCell((p.modes || {})[m])}</td>`).join("")}
-        <td><button class="btn small alt" data-act="${esc(p.nickname)}">…</button></td></tr>`).join("") || '<tr><td colspan="14" class="muted">Noch keine Lernenden mit Spitznamen.</td></tr>'}</tbody></table></div></div>
+        <td><button class="btn small alt" data-act="${esc(p.nickname)}">…</button></td></tr>`).join("") || '<tr><td colspan="16" class="muted">Noch keine Lernenden mit Spitznamen.</td></tr>'}</tbody></table></div></div>
       <div id="act"></div>`;
     const sel = document.getElementById("course"); sel.value = S.course; sel.onchange = () => { S.course = sel.value; render(); };
     v.querySelectorAll("[data-s]").forEach((h) => (h.onclick = () => { if (S.sort === h.dataset.s) S.dir *= -1; else { S.sort = h.dataset.s; S.dir = h.dataset.s === "nickname" || h.dataset.s === "course" ? 1 : -1; } render(); }));
@@ -134,7 +134,8 @@
     const box = document.getElementById("act");
     const modes = Object.keys(MODE_LONG).map((m) => { const x = (p.modes || {})[m]; return `<li><span>${esc(MODE_LONG[m])}</span><span>${x ? `${x.rounds} Runden · ${pctCell(x)}` : '<span class="muted">nicht gespielt</span>'}</span></li>`; }).join("");
     box.innerHTML = `<div class="card"><h2 style="margin-top:0">${esc(p.nickname)} <span class="badge c${esc(p.course)}">${esc(p.course)}</span> <span class="muted">Code ${esc(p.code)}</span></h2>
-      <ul class="list">${modes}</ul>
+      <ul class="list">${modes}<li><span>Sprechübungen</span><span>${p.jobcards} Jobkarten · ${p.interviews} Interviews</span></li></ul>
+      ${quizDetail(p)}
       <div class="row" style="margin-top:12px">
         <input type="text" id="newnick" placeholder="neuer Spitzname" style="max-width:260px;font-size:17px;padding:8px 12px" autocomplete="off" autocorrect="off" spellcheck="false">
         <button class="btn small" id="ren">Umbenennen</button>
@@ -147,6 +148,53 @@
     document.getElementById("ren").onclick = () => run("t_rename", { p_old: p.nickname, p_new: document.getElementById("newnick").value.trim() });
     document.getElementById("reset").onclick = () => run("t_rename", { p_old: p.nickname, p_new: null }, `Spitznamen „${p.nickname}“ zurücksetzen?`);
     document.getElementById("blk").onclick = () => run("t_block", { p_nick: p.nickname, p_blocked: !p.blocked }, p.blocked ? null : `„${p.nickname}“ sperren?`);
+  }
+
+
+  const EQ = window.ENTRY_QUIZ;
+  const dimBars = (dims) => EQ.ORDER.map((d) => `<div class="row" style="justify-content:space-between"><span>${EQ.DIMS[d].icon} ${esc(EQ.DIMS[d].name)}</span><span class="muted">${dims[d]}%</span></div><div class="bar" style="margin:3px 0 8px"><div style="width:${Math.max(3, dims[d])}%;background:var(--cyan)"></div></div>`).join("");
+  function quizDetail(p) {
+    if (!p.quiz_latest) return '<p class="muted">Einstiegsquiz noch nicht gemacht.</p>';
+    const r = EQ.evaluate(p.quiz_latest), f = EQ.evaluate(p.quiz_first);
+    const ans = EQ.QUESTIONS.map((q, i) => `<tr><td>${i + 1}</td><td>${q.icon} ${esc(q.q)}</td><td>${esc(q[p.quiz_latest[i]])}</td></tr>`).join("");
+    return `<div class="card" style="background:#f7fbfc"><b>Einstiegsquiz</b> ${p.quiz_attempts > 1 ? `<span class="muted">(${p.quiz_attempts} Durchgänge · erstes Profil: ${f.icon} ${esc(f.title)})</span>` : ""}
+      <h3 style="margin:6px 0">${r.icon} ${esc(r.title)} · ${r.total}%</h3>${dimBars(r.dims)}
+      ${r.notes.length ? `<p>${r.notes.map(esc).join("<br>")}</p>` : ""}
+      <details><summary>Antworten im Einzelnen</summary><table class="t">${ans}</table></details></div>`;
+  }
+
+  function quiz(v) {
+    const P = S.data.players;
+    const courses = ["9abc", "9de"];
+    const stat = (list) => {
+      const done = list.filter((p) => p.quiz_first);
+      const res = done.map((p) => EQ.evaluate(p.quiz_first));
+      const count = (fn) => { const c = {}; res.forEach((r) => { const k = fn(r); c[k] = (c[k] || 0) + 1; }); return c; };
+      const avg = {}; EQ.ORDER.forEach((d) => { avg[d] = res.length ? Math.round(res.reduce((s, r) => s + r.dims[d], 0) / res.length) : 0; });
+      const qdist = EQ.QUESTIONS.map((_, i) => { const c = { a: 0, b: 0, c: 0 }; done.forEach((p) => c[p.quiz_first[i]]++); return c; });
+      return { list, done, res, types: count((r) => r.typeKey), levels: count((r) => r.levelKey), grow: count((r) => r.grow), avg, qdist };
+    };
+    const bars = (obj, labels, n) => Object.keys(labels).map((k) => `<div class="row" style="justify-content:space-between"><span>${labels[k]}</span><span class="muted">${obj[k] || 0}</span></div><div class="bar" style="margin:3px 0 8px"><div style="width:${n ? Math.max(3, ((obj[k] || 0) / n) * 100) : 3}%;background:var(--petrol)"></div></div>`).join("");
+    const typeLabels = {}; Object.entries(EQ.TYPES).forEach(([k, t]) => { typeLabels[k] = `${t.icon} ${t.title}`; });
+    const levelLabels = {}; EQ.LEVELS.forEach((l) => { levelLabels[l.key] = `${l.adj} (ab ${l.min} %)`; });
+    const growLabels = {}; EQ.ORDER.forEach((d) => { growLabels[d] = `${EQ.DIMS[d].icon} ${EQ.DIMS[d].name}`; });
+    const block = (title, st) => {
+      const n = st.done.length;
+      const open = st.list.filter((p) => !p.quiz_first).map((p) => esc(p.nickname));
+      return `<div class="card"><h2 style="margin-top:0">${title} <span class="muted">· ${n} von ${st.list.length} Lernenden mit Spitznamen haben das Quiz gemacht</span></h2>
+        ${open.length ? `<p><b>Noch offen:</b> ${open.join(", ")}</p>` : ""}
+        ${n ? `<div class="grid">
+          <div><b>Profiltypen (stärkster Bereich)</b>${bars(st.types, typeLabels, n)}</div>
+          <div><b>Gesamtstufe</b>${bars(st.levels, levelLabels, n)}</div>
+          <div><b>Durchschnitt je Bereich</b>${dimBars(st.avg)}</div>
+          <div><b>Größter Entwicklungsbereich</b>${bars(st.grow, growLabels, n)}</div></div>
+          <details style="margin-top:10px"><summary><b>Antworten je Frage</b> (a = selbstständigste Antwort, c = am wenigsten)</summary>
+            <table class="t"><tr><th>#</th><th>Frage</th><th class="num">a</th><th class="num">b</th><th class="num">c</th></tr>
+            ${EQ.QUESTIONS.map((q, i) => { const c = st.qdist[i]; const hot = (i === 6 || i === 9) && c.c > 0; return `<tr><td>${i + 1}</td><td>${q.icon} ${esc(q.q)}${q.isNew ? ' <span class="badge">neu</span>' : ""}</td><td class="num">${c.a}</td><td class="num">${c.b}</td><td class="num"${hot ? ' style="color:var(--bad);font-weight:700"' : ""}>${c.c}</td></tr>`; }).join("")}</table></details>` : '<p class="muted">Noch keine Ergebnisse.</p>'}</div>`;
+    };
+    v.innerHTML = `<p class="muted">Statistik auf Basis des <b>ersten</b> Durchgangs (Einstieg in die Reihe). In der Tabelle „Lernende“ steht das aktuelle Profil; Details über „…“.</p>
+      ${courses.map((c) => block(`Kurs ${c}`, stat(P.filter((p) => p.course === c)))).join("")}
+      ${block("Beide Kurse", stat(P))}`;
   }
 
   function duels(v) {

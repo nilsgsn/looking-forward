@@ -122,3 +122,26 @@ table.rank td:last-child { text-align: right; font-weight: 700; }
 .toggle button { border: 0; background: #fff; color: var(--petrol); font: inherit; padding: 6px 14px; cursor: pointer; }
 .toggle button.on { background: var(--petrol); color: #fff; }
 @media (max-width: 420px) { .choices { grid-template-columns: 1fr; } .prompt { font-size: 21px; } }
+
+/* Entry quiz + speak (v3) */
+body.locked .tabs button:not([data-go="home"]) { opacity: .35; pointer-events: none; }
+body.locked .tabs::after { content: "🔒 Do the quiz to unlock"; position: absolute; left: 0; right: 0; top: -26px; text-align: center; font-size: 13px; color: var(--petrol); }
+.tabs { position: fixed; }
+.quiz-hero h1 { font-size: 28px; }
+.big-btn { font-size: 20px; padding: 14px 30px; }
+.quizq { text-align: center; }
+.qicon { font-size: 56px; line-height: 1; margin: 6px 0 10px; }
+.qopts { display: grid; gap: 10px; margin-top: 8px; }
+.qopt { font: inherit; font-size: 17px; text-align: left; padding: 14px 16px; border-radius: 14px; border: 2px solid var(--line); background: #fff; cursor: pointer; transition: transform .1s, border-color .1s; }
+.qopt:hover { border-color: var(--cyan); }
+.qopt.picked { border-color: var(--ok); background: #e3f5ea; transform: scale(1.02); }
+.spin { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; overflow: hidden; }
+.confetti span { position: absolute; top: -40px; font-size: 26px; animation: fall 2.2s ease-in forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+.timer { font-size: 54px; font-weight: 700; color: var(--petrol); text-align: center; font-variant-numeric: tabular-nums; }
+.check { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.check input { width: 22px; height: 22px; }
+.hl { background: #fbfce9; border-left: 4px solid var(--lime); border-radius: 4px; }
+@media (max-width: 520px) { .tabs button span { font-size: 10px; } }
