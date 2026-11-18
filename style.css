@@ -145,3 +145,4 @@ body.locked .tabs::after { content: "🔒 Do the quiz to unlock"; position: abso
 .check input { width: 22px; height: 22px; }
 .hl { background: #fbfce9; border-left: 4px solid var(--lime); border-radius: 4px; }
 @media (max-width: 520px) { .tabs button span { font-size: 10px; } }
+.locked-tile { opacity: .6; border: 2px dashed var(--line); }

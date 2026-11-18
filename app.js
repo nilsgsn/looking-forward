@@ -18,7 +18,8 @@
     TOO_MANY_OPEN: "You already have 5 open duels. Wait for answers first.",
     BAD_DUEL: "This duel is not available any more.",
     BAD_RESULT: "Something went wrong with your result.",
-    BLOCKED: "This code has been blocked. Please talk to your teacher."
+    BLOCKED: "This code has been blocked. Please talk to your teacher.",
+    SPEAK_LOCKED: "Speak is still locked – it opens shortly before your oral exam."
   };
 
   async function rpc(fn, args) {
@@ -48,7 +49,13 @@
     del(k) { try { localStorage.removeItem("lf_" + k); } catch (e) {} }
   };
 
-  const state = { code: store.get("code", null), me: null, tab: "home" };
+  const state = { code: store.get("code", null), me: null, tab: "home", settings: { speak_open: false } };
+  // Speak opens when the teacher unlocks it (teacher accounts can always preview it)
+  const speakOpen = () => !!state.settings.speak_open || !!(state.me && state.me.course === "teacher");
+  function renderTabs() {
+    const b = document.getElementById("tab-speak");
+    if (b) b.innerHTML = `${speakOpen() ? "🎙️" : "🔒"}<span>Speak</span>`;
+  }
   const $main = document.getElementById("main");
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const MODES = { vocab1: "Vocabulary – " + LISTS.vocab1.title, vocab2: "Vocabulary – " + LISTS.vocab2.title, vocab3: "Vocabulary – " + LISTS.vocab3.title, interview: "Vocabulary – Job interview", grammar: "Grammar – Questions" };
@@ -110,6 +117,7 @@
     if (tab !== "home" && (!unlocked() || (state.code && state.me && !state.me.nickname))) tab = "home";
     state.tab = tab;
     document.body.classList.toggle("locked", !unlocked());
+    renderTabs();
     document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.go === tab));
     window.scrollTo(0, 0);
     ({ home: viewHome, learn: viewLearn, practice: viewPractice, speak: viewSpeak, duels: viewDuels, ranking: viewRanking })[tab](arg);
@@ -178,7 +186,7 @@
         <p class="hl" style="padding:8px">🎯 <b>Challenge:</b> ${esc(r.week)}</p></div>
       ${r.notes.length ? `<div class="card">${r.notes.map((n) => `<p>${esc(n)}</p>`).join("")}</div>` : ""}
       <div class="card"><b>💼 Jobs from our unit that could suit you</b><div class="row" style="margin-top:8px">${r.jobs.map((j) => { const job = JOBS.find((x) => x.en === j); return `<span class="badge" style="font-size:15px;padding:6px 12px">${job ? job.icon : ""} ${esc(j)}</span>`; }).join("")}</div>
-        <p class="muted">Find out more in 🎙️ Speak → Job explorer.</p></div>`;
+        <p class="muted">${speakOpen() ? "Find out more in 🎙️ Speak → Job explorer." : "You'll get to know these jobs in class – and in 🔒 Speak, which opens shortly before the oral exam."}</p></div>`;
   }
   function showProfile(answers, first) {
     const r = EQ.evaluate(answers);
@@ -220,11 +228,11 @@
       </div>
       <div class="card"><div class="row" style="justify-content:space-between"><span><span style="font-size:26px">${prof.icon}</span> <b>${esc(prof.title)}</b><br><small class="muted">🎯 ${esc(prof.week)}</small></span>
         <span class="row"><button class="btn small alt" id="myprof">My profile</button><button class="btn small alt" id="retake">Retake quiz</button></span></div></div>
-      <div class="card"><b>🎯 Oral exam on 16th December</b><p class="muted" style="margin:4px 0 0">Part 1: explain a job · Part 2: job interview for your dream job. Train both in 🎙️ Speak!</p></div>
+      <div class="card"><b>🎯 Oral exam on 16th December</b><p class="muted" style="margin:4px 0 0">Part 1: explain a job · Part 2: job interview for your dream job. ${speakOpen() ? "Train both in 🎙️ Speak!" : "🔒 Speak (job cards and interview simulator) opens shortly before the exam."}</p></div>
       <div class="grid">
         <div class="tile" data-go="learn"><b>📚 Learn</b><small>Flashcards and grammar rules – no pressure</small></div>
         <div class="tile" data-go="practice"><b>🎯 Practice</b><small>10 questions, collect XP</small></div>
-        <div class="tile" data-go="speak"><b>🎙️ Speak</b><small>Job explorer, job cards, interview simulator</small></div>
+        ${speakTile()}
         <div class="tile" data-go="duels"><b>⚔️ Duels</b><small>Challenge someone from 9abc or 9de</small></div>
         <div class="tile" data-go="ranking"><b>🏆 Ranking</b><small>9abc vs. 9de – who is ahead this week?</small></div>
       </div>
@@ -241,7 +249,7 @@
       <div class="grid">
         <div class="tile" data-go="learn"><b>📚 Learn</b><small>Flashcards and grammar rules</small></div>
         <div class="tile" data-go="practice"><b>🎯 Practice</b><small>10 questions</small></div>
-        <div class="tile" data-go="speak"><b>🎙️ Speak</b><small>Job explorer, job cards, interview simulator</small></div>
+        ${speakTile()}
       </div>
       <p class="center" style="margin-top:20px"><a href="#" id="signin">Sign in with a code</a></p>`;
     document.getElementById("myprof").onclick = () => showProfile(quizAnswers(), false);
@@ -477,7 +485,21 @@
       res.innerHTML = `<div class="feedback ok">+3 XP saved ✔ Great speaking practice!</div>`; document.getElementById("log").disabled = true; }
     catch (e) { res.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
   }
+  function speakTile() {
+    return speakOpen()
+      ? '<div class="tile" data-go="speak"><b>🎙️ Speak</b><small>Job explorer, job cards, interview simulator</small></div>'
+      : '<div class="tile locked-tile" data-go="speak"><b>🔒 Speak</b><small>Job cards & interview simulator – opens shortly before your oral exam</small></div>';
+  }
+  function viewSpeakLocked() {
+    $main.innerHTML = `<div class="card hero center"><div class="big">🔒</div><h1>Speak is still locked</h1>
+        <p>This area opens <b>shortly before your oral exam on 16th December</b>. Your teacher will unlock it.</p></div>
+      <div class="card"><b>What's waiting for you:</b>
+        <ul class="list"><li>🔎 <span><b>Job explorer</b> – all 8 exam jobs</span></li><li>🎴 <span><b>Part 1: job cards</b> – explain a job with a timer</span></li><li>🤝 <span><b>Part 2: interview simulator</b> – the app asks you the interview questions</span></li></ul></div>
+      <div class="card"><b>Until then, get ready:</b><p class="muted">Learn the words for the vocabulary tests, practise questions in Grammar – and challenge your classmates in a duel. Every XP counts! 💪</p>
+        <div class="row"><button class="btn" data-go="learn">📚 Learn</button><button class="btn alt" data-go="practice">🎯 Practice</button></div></div>`;
+  }
   function viewSpeak() {
+    if (!speakOpen()) return viewSpeakLocked();
     clearInterval(timerId);
     const wish = store.get("wish", null);
     $main.innerHTML = `<h1>🎙️ Speak</h1>
@@ -631,6 +653,7 @@
 
   // ---- Start
   (async () => {
+    try { state.settings = await rpc("get_settings"); } catch (e) {}
     if (state.code) {
       try { state.me = await rpc("login", { p_code: state.code }); }
       catch (e) { if (e.message === ERR.INVALID_CODE) { store.del("code"); state.code = null; } }

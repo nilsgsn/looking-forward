@@ -54,6 +54,7 @@
   async function load(fromSignIn) {
     try {
       S.data = await rpc("t_overview", { p_code: S.code });
+      try { S.settings = await rpc("get_settings"); } catch (e) {}
       S.updated = new Date();
       store.set("code", S.code);
       if (!S.timer) S.timer = setInterval(() => { if (!document.hidden) load(); }, 60000);
@@ -212,7 +213,11 @@
 
   function admin(v) {
     const U = S.data.unused;
-    v.innerHTML = `<div class="card"><h2 style="margin-top:0">Neue Codes erzeugen</h2>
+    const open = !!(S.settings && S.settings.speak_open);
+    v.innerHTML = `<div class="card"><h2 style="margin-top:0">${open ? "🎙️" : "🔒"} Bereich „Speak“ für Lernende</h2>
+        <p>Status: <b>${open ? "freigeschaltet" : "gesperrt"}</b>. ${open ? "Alle Lernenden sehen Job explorer, Jobkarten und Interview-Simulator." : "Die Lernenden sehen ein Schloss und den Hinweis, dass der Bereich kurz vor der Prüfung öffnet. Mit deinem Lehrkraft-Code kannst du ihn schon jetzt ansehen."}</p>
+        <button class="btn ${open ? "alt" : "lime"}" id="speaktoggle">${open ? "🔒 Wieder sperren" : "🔓 Jetzt freischalten"}</button><div class="err" id="serr"></div></div>
+      <div class="card"><h2 style="margin-top:0">Neue Codes erzeugen</h2>
         <div class="row"><select id="nc"><option>9abc</option><option>9de</option></select>
         <input type="text" id="nn" value="5" style="max-width:90px;font-size:17px;padding:8px 12px" inputmode="numeric">
         <button class="btn small" id="gen">Erzeugen</button></div><div id="newcodes" class="codes" style="margin-top:10px"></div><div class="err" id="gerr"></div></div>
@@ -222,6 +227,10 @@
         <li>Die Zuordnung Code → Name nur auf Papier festhalten, nicht digital.</li>
         <li>Neue Codes erscheinen nach „aktualisieren“ auch in der Liste oben.</li>
         <li>Die Seite aktualisiert sich jede Minute von selbst.</li></ul></div>`;
+    document.getElementById("speaktoggle").onclick = async () => {
+      if (!window.confirm(open ? "Speak für alle Lernenden wieder sperren?" : "Speak jetzt für alle Lernenden freischalten?")) return;
+      try { S.settings = await rpc("t_set_speak", { p_code: S.code, p_open: !open }); render(); } catch (e) { document.getElementById("serr").textContent = e.message; }
+    };
     document.getElementById("gen").onclick = async () => {
       try { const codes = await rpc("t_new_codes", { p_code: S.code, p_course: document.getElementById("nc").value, p_n: parseInt(document.getElementById("nn").value, 10) || 0 });
         document.getElementById("newcodes").innerHTML = `<b>Neu:</b> ${codes.map(esc).join(" ")}`; }
