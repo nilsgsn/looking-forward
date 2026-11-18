@@ -54,7 +54,7 @@
 
   const LEVELS = [
     { min: 80, key: "ready", adj: "Ready-for-Life", text: "Great! You already have most of the life skills you need to be independent. But life is more than work and money – don't forget to enjoy yourself and have fun with your friends." },
-    { min: 60, key: "rising", adj: "Rising", text: "You are quite independent already. A few important life skills are still missing – but you're on a really good way. Choose one area and work on it." },
+    { min: 60, key: "rising", adj: "Rising", text: "You are quite independent already. A few important life skills are still missing – but you're definitely on the right track. Choose one area and work on it." },
     { min: 40, key: "growing", adj: "Growing", text: "You have made a start, but you still need help in some areas. That's completely normal at your age! Make a plan and learn one new skill at a time." },
     { min: 0, key: "starting", adj: "Future", text: "You know how to enjoy life – but you are not ready for the real world yet. The good news: life skills can be learned. Start with one small step every week." }
   ];
