@@ -50,8 +50,8 @@
   };
 
   const state = { code: store.get("code", null), me: null, tab: "home", settings: { speak_open: false } };
-  // Speak opens when the teacher unlocks it (teacher accounts can always preview it)
-  const speakOpen = () => !!state.settings.speak_open || !!(state.me && state.me.course === "teacher");
+  // Speak opens when the teacher unlocks it. Teachers see the same lock, but can open a preview.
+  const speakOpen = () => !!state.settings.speak_open || !!state.preview;
   function renderTabs() {
     const b = document.getElementById("tab-speak");
     if (b) b.innerHTML = `${speakOpen() ? "🎙️" : "🔒"}<span>Speak</span>`;
@@ -496,7 +496,10 @@
       <div class="card"><b>What's waiting for you:</b>
         <ul class="list"><li>🔎 <span><b>Job explorer</b> – all 8 exam jobs</span></li><li>🎴 <span><b>Part 1: job cards</b> – explain a job with a timer</span></li><li>🤝 <span><b>Part 2: interview simulator</b> – the app asks you the interview questions</span></li></ul></div>
       <div class="card"><b>Until then, get ready:</b><p class="muted">Learn the words for the vocabulary tests, practise questions in Grammar – and challenge your classmates in a duel. Every XP counts! 💪</p>
-        <div class="row"><button class="btn" data-go="learn">📚 Learn</button><button class="btn alt" data-go="practice">🎯 Practice</button></div></div>`;
+        <div class="row"><button class="btn" data-go="learn">📚 Learn</button><button class="btn alt" data-go="practice">🎯 Practice</button></div></div>
+      ${state.me && state.me.course === "teacher" ? `<div class="card" style="border:2px dashed var(--petrol)"><b>🧑‍🏫 Nur für Lehrkräfte</b><p class="muted">So sehen die Lernenden den Bereich, solange er gesperrt ist. Freischalten: Lehrerseite → Verwaltung.</p><button class="btn alt" id="preview">👀 Vorschau öffnen (nur für dich)</button></div>` : ""}`;
+    const pv = document.getElementById("preview");
+    if (pv) pv.onclick = () => { state.preview = true; go("speak"); };
   }
   function viewSpeak() {
     if (!speakOpen()) return viewSpeakLocked();
